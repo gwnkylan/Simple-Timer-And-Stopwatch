@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Tools</title>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, Arial;
+}
+
+body {
+    height: 100vh;
+    background: white;
+    color: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* MENU */
+.menu {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    font-size: 22px;
+    background: none;
+    border: none;
+}
+
+/* SWITCH */
+.switch {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    display: flex;
+    background: #eee;
+    border-radius: 15px;
+    padding: 4px;
+}
+
+.switch button {
+    border: none;
+    padding: 8px 14px;
+    border-radius: 12px;
+    background: transparent;
+    font-size: 14px;
+}
+
+.active {
+    background: black;
+    color: white;
+}
+
+/* CENTER WRAPPER */
+.app {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+/* TIME */
+.time {
+    font-size: 14vw;
+    text-align: center;
+}
+
+.ms {
+    font-size: 5vw;
+    opacity: 0.5;
+}
+
+/* INPUTS */
+.inputs {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.inputs input {
+    width: 60px;
+    padding: 10px;
+    text-align: center;
+    border: 1px solid black;
+    border-radius: 10px;
+}
+
+.controls {
+    display: flex;
+    justify-content: center;   /* <-- belangrijk */
+    align-items: center;
+    gap: 12px;
+    margin-top: 25px;
+    width: 100%;
+}
+
+/* BUTTON STYLE */
+.controls button {
+    padding: 12px 18px;
+    border-radius: 12px;
+    border: none;
+    background: black;
+    color: white;
+    font-size: 14px;
+}
+
+/* STATES */
+.hidden { display: none; }
+
+/* UI HIDE */
+.ui-hidden .controls,
+.ui-hidden .inputs,
+.ui-hidden .switch {
+    display: none;
+}
+
+/* ALARM */
+.alarm {
+    background: black !important;
+    color: white;
+}
+
+/* LOCK */
+.lock {
+    pointer-events: none;
+    opacity: 0.6;
+}
+</style>
+</head>
+
+<body id="body">
+
+<button class="menu" id="menu">☰</button>
+
+<div class="switch">
+    <button id="btnSW" class="active">Stopwatch</button>
+    <button id="btnTM">Timer</button>
+</div>
+
+<div class="app" id="app">
+
+<!-- STOPWATCH -->
+<div id="stopwatch">
+    <div class="time" id="sw-time">00:00:00 <span class="ms">00</span></div>
+
+    <div class="controls">
+        <button id="swStart">Start</button>
+        <button id="swPause">Pause</button>
+        <button id="swReset">Reset</button>
+    </div>
+</div>
+
+<!-- TIMER -->
+<div id="timer" class="hidden">
+    <div class="time" id="tm-time">00:00:00 <span class="ms">00</span></div>
+
+    <div class="inputs">
+        <input id="h" placeholder="H">
+        <input id="m" placeholder="M">
+        <input id="s" placeholder="S">
+    </div>
+
+    <div class="controls">
+        <button id="tmStart">Start</button>
+        <button id="tmPause">Pause</button>
+        <button id="tmReset">Reset</button>
+    </div>
+</div>
+
+</div>
+
+<script>
+// ELEMENTS
+const body = document.getElementById("body");
+const app = document.getElementById("app");
+
+const swTimeEl = document.getElementById("sw-time");
+const tmTimeEl = document.getElementById("tm-time");
+
+const stopwatch = document.getElementById("stopwatch");
+const timer = document.getElementById("timer");
+
+const btnSW = document.getElementById("btnSW");
+const btnTM = document.getElementById("btnTM");
+
+const hInput = document.getElementById("h");
+const mInput = document.getElementById("m");
+const sInput = document.getElementById("s");
+
+// MENU
+menu.onclick = () => body.classList.toggle("ui-hidden");
+
+// STOPWATCH
+let swTime = 0, swInterval = null;
+
+function updateSW() {
+    let ms = Math.floor((swTime % 1000) / 10);
+    let s = Math.floor((swTime / 1000) % 60);
+    let m = Math.floor((swTime / 60000) % 60);
+    let h = Math.floor(swTime / 3600000);
+    swTimeEl.innerHTML = `${pad(h)}:${pad(m)}:${pad(s)} <span class="ms">${pad(ms)}</span>`;
+}
+
+swStart.onclick = () => {
+    if (!swInterval) swInterval = setInterval(() => { swTime += 10; updateSW(); }, 10);
+};
+
+swPause.onclick = () => { clearInterval(swInterval); swInterval = null; };
+
+swReset.onclick = () => { clearInterval(swInterval); swInterval = null; swTime = 0; updateSW(); };
+
+// TIMER
+let tmTime = 0, tmInterval = null, alarmInterval = null, audioCtx;
+
+function beep() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+
+    osc.frequency.value = 800;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+    osc.stop(audioCtx.currentTime + 0.3);
+}
+
+function startAlarm() {
+    body.classList.add("alarm");
+    app.classList.add("lock");
+
+    alarmInterval = setInterval(beep, 400);
+
+    setTimeout(() => {
+        clearInterval(alarmInterval);
+        body.classList.remove("alarm");
+        app.classList.remove("lock");
+    }, 5000);
+}
+
+function updateTM() {
+    let ms = Math.floor((tmTime % 1000) / 10);
+    let s = Math.floor((tmTime / 1000) % 60);
+    let m = Math.floor((tmTime / 60000) % 60);
+    let h = Math.floor(tmTime / 3600000);
+    tmTimeEl.innerHTML = `${pad(h)}:${pad(m)}:${pad(s)} <span class="ms">${pad(ms)}</span>`;
+}
+
+tmStart.onclick = () => {
+    if (tmTime === 0) {
+        let h = parseInt(hInput.value) || 0;
+        let m = parseInt(mInput.value) || 0;
+        let s = parseInt(sInput.value) || 0;
+        tmTime = (h*3600 + m*60 + s) * 1000;
+    }
+
+    if (!tmInterval && tmTime > 0) {
+        tmInterval = setInterval(() => {
+            tmTime -= 10;
+            if (tmTime <= 0) {
+                tmTime = 0;
+                clearInterval(tmInterval);
+                startAlarm();
+            }
+            updateTM();
+        }, 10);
+    }
+};
+
+tmPause.onclick = () => { clearInterval(tmInterval); tmInterval = null; };
+tmReset.onclick = () => { clearInterval(tmInterval); tmInterval = null; tmTime = 0; updateTM(); };
+
+// SWITCH
+btnSW.onclick = () => {
+    stopwatch.classList.remove("hidden");
+    timer.classList.add("hidden");
+    btnSW.classList.add("active");
+    btnTM.classList.remove("active");
+};
+
+btnTM.onclick = () => {
+    timer.classList.remove("hidden");
+    stopwatch.classList.add("hidden");
+    btnTM.classList.add("active");
+    btnSW.classList.remove("active");
+};
+
+// HELPER
+function pad(n) { return n.toString().padStart(2, "0"); }
+
+updateSW();
+updateTM();
+</script>
+
+</body>
+</html>
